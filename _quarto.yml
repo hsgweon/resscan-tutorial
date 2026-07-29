@@ -15,15 +15,8 @@ website:
     pinned: true
     logo: logo/ResScanLogo_web.png
     logo-alt: "ResScan"
-    left:
-      - text: "Overview"
-        href: overview.qmd
-      - text: "Tutorial"
-        href: setup.qmd
-      - text: "Analysis"
-        href: analysis.qmd
-      - text: "Reference"
-        href: output-reference.qmd
+    # Navigation lives in the sidebar (single, ordered source of truth).
+    # The top bar keeps only the logo (→ home), GitHub, and search.
     right:
       - icon: github
         href: https://github.com/hsgweon/resscan-tutorial

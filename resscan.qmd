@@ -42,8 +42,9 @@ When it finishes, look at what it produced:
 ls resscan_single/
 ```
 
-The key file is `SRR10842836_homscan.tsv` — one row per detected AMR gene, with all
-the normalised metrics (including the default `RPKPMC`) as columns. There's also a
+The key file is `SRR10842836_homscan.tsv` in the `SRR10842836` folder — one row per
+detected AMR gene, with all the normalised metrics (including the default `RPKPMC`)
+as columns. There's also a
 VarScan table for point-mutation resistance and interactive HTML coverage plots.
 
 ::: {.callout-tip}

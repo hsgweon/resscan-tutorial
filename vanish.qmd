@@ -46,7 +46,7 @@ vanish-prep --fastq_dir data/rawdata_10K --r1 "_1" --r2 "_2" --out read_pairs.cs
 Have a look — one row per sample, forward and reverse:
 
 ```bash
-head -3 read_pairs.csv
+cat read_pairs.csv
 ```
 
 ::: {.callout-tip appearance="simple"}
