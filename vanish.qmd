@@ -1,0 +1,123 @@
+---
+title: "Step 1 · QC & host removal with VANISH"
+subtitle: "Quality-control every read and make the human DNA vanish — before you count anything."
+---
+
+Before you count resistance genes, clean the reads. **VANISH** does two things in
+one pass: it **quality-controls** every read (with `fastp`) and then makes the
+host DNA **vanish** (with `bowtie2`). What comes out is quality-trimmed,
+host-free FASTQ — ready for ResScan.
+
+::: {.callout-note}
+## Why bother stripping host DNA? Three reasons
+**It's dead weight** — human reads carry no bacterial resistance genes and just cost
+you mapping time.
+
+**It protects your numbers** — tools that report AMR *per million sequenced reads*
+(RPKM/FPKM-style) divide by your *whole* library, so human reads inflate the
+denominator and can make a sample look artificially resistance-*poor* — sometimes
+massively, and unevenly across samples with different host content. ResScan's default
+**RPKPMC** is robust to this: it normalises *per bacterial cell* (via single-copy
+bacterial genes), so human reads — which match neither the AMR genes nor those
+bacterial markers — are simply ignored, and the estimate stays comparable. Robust,
+not immune, though: heavy contamination still eats sequencing budget and sensitivity,
+so strip it regardless.
+
+**And it's the rule** — you must never archive human reads in public repositories
+(privacy and consent), so **dehost before you deposit**.
+:::
+
+First, switch on the VANISH environment:
+
+```bash
+mamba activate vanish-env
+```
+
+## 1a · Prepare the read list
+
+VANISH needs a small CSV pairing each sample's forward and reverse files.
+`vanish-prep` builds it automatically — point it at the reads and tell it how the
+mates are named (`_1` / `_2`):
+
+```bash
+vanish-prep --fastq_dir data/rawdata_10K --r1 "_1" --r2 "_2" --out read_pairs.csv
+```
+
+Have a look — one row per sample, forward and reverse:
+
+```bash
+head -3 read_pairs.csv
+```
+
+::: {.callout-tip appearance="simple"}
+A ready-made copy also ships at `data/read_pairs.csv`, so you can skip this step if
+you like — they're identical.
+:::
+
+## 1b · Run VANISH
+
+Now dehost and QC all 36 samples. We point `--host_index` at the **toy** human
+index that shipped with the repo, and keep `--cpus` modest for a laptop:
+
+```bash
+vanish --read_pairs read_pairs.csv \
+       --fastq_dir data/rawdata_10K \
+       --host_index data/host_index/toy_human \
+       --cpus 4
+```
+
+On this 10K subset it finishes in a minute or two. You'll see Nextflow tick through
+the three stages:
+
+```default
+ N E X T F L O W   ~  version 26.04.x
+executor >  local
+
+[..] FASTP_QC (SRR10842837)    [100%] 36 of 36 ✔
+[..] REMOVE_HOST (SRR10842865) [100%] 36 of 36 ✔
+[..] COMPILE_REPORT            [100%] 1 of 1  ✔
+
+--- Vanish Run Complete ---
+Status:   SUCCESS
+Output:   vanished
+```
+
+## 1c · See what happened
+
+The cleaned reads keep their original names, under `vanished/vanished_reads/`:
+
+```bash
+ls vanished/vanished_reads/ | head
+```
+
+And a per-sample report tells you what was trimmed and removed — reads in, QC
+drops, host reads removed, reads out:
+
+```bash
+column -s, -t vanished/vanish_filtering_report.csv | head
+```
+
+::: {.callout-warning}
+## Expect almost no host removal here — that's by design
+Our toy index is only the human *mitochondrion*, so it catches just a trickle of host
+reads. The QC step is still doing real work. On real data with the **full human
+index**, host removal is typically substantial — which is exactly why this step
+matters.
+:::
+
+## Tidy up (optional)
+
+Nextflow keeps a `work/` scratch directory that can balloon far beyond your input.
+Once you've seen the results, reclaim the space:
+
+```bash
+rm -rf work .nextflow*
+```
+
+Finally, leave the VANISH environment before moving on:
+
+```bash
+mamba deactivate
+```
+
+Cleaned reads in hand — on to **Step 2**.

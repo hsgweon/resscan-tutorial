@@ -1,0 +1,489 @@
+[
+  {
+    "objectID": "vanish.html",
+    "href": "vanish.html",
+    "title": "Step 1 · QC & host removal with VANISH",
+    "section": "",
+    "text": "Before you count resistance genes, clean the reads. VANISH does two things in one pass: it quality-controls every read (with fastp) and then makes the host DNA vanish (with bowtie2). What comes out is quality-trimmed, host-free FASTQ — ready for ResScan.\nFirst, switch on the VANISH environment:",
+    "crumbs": [
+      "Overview",
+      "The workflow",
+      "Step 1 · QC &amp; host removal"
+    ]
+  },
+  {
+    "objectID": "vanish.html#a-prepare-the-read-list",
+    "href": "vanish.html#a-prepare-the-read-list",
+    "title": "Step 1 · QC & host removal with VANISH",
+    "section": "1a · Prepare the read list",
+    "text": "1a · Prepare the read list\nVANISH needs a small CSV pairing each sample’s forward and reverse files. vanish-prep builds it automatically — point it at the reads and tell it how the mates are named (_1 / _2):\nvanish-prep --fastq_dir data/rawdata_10K --r1 \"_1\" --r2 \"_2\" --out read_pairs.csv\nHave a look — one row per sample, forward and reverse:\nhead -3 read_pairs.csv\n\n\n\n\n\n\nA ready-made copy also ships at data/read_pairs.csv, so you can skip this step if you like — they’re identical.",
+    "crumbs": [
+      "Overview",
+      "The workflow",
+      "Step 1 · QC &amp; host removal"
+    ]
+  },
+  {
+    "objectID": "vanish.html#b-run-vanish",
+    "href": "vanish.html#b-run-vanish",
+    "title": "Step 1 · QC & host removal with VANISH",
+    "section": "1b · Run VANISH",
+    "text": "1b · Run VANISH\nNow dehost and QC all 36 samples. We point --host_index at the toy human index that shipped with the repo, and keep --cpus modest for a laptop:\nvanish --read_pairs read_pairs.csv \\\n       --fastq_dir data/rawdata_10K \\\n       --host_index data/host_index/toy_human \\\n       --cpus 4\nOn this 10K subset it finishes in a minute or two. You’ll see Nextflow tick through the three stages:\n N E X T F L O W   ~  version 26.04.x\nexecutor &gt;  local\n\n[..] FASTP_QC (SRR10842837)    [100%] 36 of 36 ✔\n[..] REMOVE_HOST (SRR10842865) [100%] 36 of 36 ✔\n[..] COMPILE_REPORT            [100%] 1 of 1  ✔\n\n--- Vanish Run Complete ---\nStatus:   SUCCESS\nOutput:   vanished",
+    "crumbs": [
+      "Overview",
+      "The workflow",
+      "Step 1 · QC &amp; host removal"
+    ]
+  },
+  {
+    "objectID": "vanish.html#c-see-what-happened",
+    "href": "vanish.html#c-see-what-happened",
+    "title": "Step 1 · QC & host removal with VANISH",
+    "section": "1c · See what happened",
+    "text": "1c · See what happened\nThe cleaned reads keep their original names, under vanished/vanished_reads/:\nls vanished/vanished_reads/ | head\nAnd a per-sample report tells you what was trimmed and removed — reads in, QC drops, host reads removed, reads out:\ncolumn -s, -t vanished/vanish_filtering_report.csv | head\n\n\n\n\n\n\nWarningExpect almost no host removal here — that’s by design\n\n\n\nOur toy index is only the human mitochondrion, so it catches just a trickle of host reads. The QC step is still doing real work. On real data with the full human index, host removal is typically substantial — which is exactly why this step matters.",
+    "crumbs": [
+      "Overview",
+      "The workflow",
+      "Step 1 · QC &amp; host removal"
+    ]
+  },
+  {
+    "objectID": "vanish.html#tidy-up-optional",
+    "href": "vanish.html#tidy-up-optional",
+    "title": "Step 1 · QC & host removal with VANISH",
+    "section": "Tidy up (optional)",
+    "text": "Tidy up (optional)\nNextflow keeps a work/ scratch directory that can balloon far beyond your input. Once you’ve seen the results, reclaim the space:\nrm -rf work .nextflow*\nFinally, leave the VANISH environment before moving on:\nmamba deactivate\nCleaned reads in hand — on to Step 2.",
+    "crumbs": [
+      "Overview",
+      "The workflow",
+      "Step 1 · QC &amp; host removal"
+    ]
+  },
+  {
+    "objectID": "resscan.html",
+    "href": "resscan.html",
+    "title": "Step 2 · Quantifying AMR with ResScan",
+    "section": "",
+    "text": "Now the clean reads meet the resistance database. ResScan maps each sample against CARD to find AMR genes, and against a set of universal single-copy bacterial genes to estimate how many bacterial cells were there — then divides one by the other to report RPKPMC, its preferred default metric: resistance-gene copies per bacterial cell.\nWe’ll do it twice: one sample by hand to see the shape of the output, then all 36 at once in batch mode.",
+    "crumbs": [
+      "Overview",
+      "The workflow",
+      "Step 2 · Quantify with ResScan"
+    ]
+  },
+  {
+    "objectID": "resscan.html#a-one-sample",
+    "href": "resscan.html#a-one-sample",
+    "title": "Step 2 · Quantifying AMR with ResScan",
+    "section": "2a · One sample",
+    "text": "2a · One sample\nGive ResScan the sample’s two vanished mate files (comma-separated), an output prefix, some threads, and the CARD database you built in Setup:\nmkdir -p resscan_single\nresscan -i vanished/vanished_reads/SRR10842836_1.fastq.gz,vanished/vanished_reads/SRR10842836_2.fastq.gz \\\n        -o resscan_single/SRR10842836 \\\n        -t 4 \\\n        --card resscan_CARD_v4.0.1\nWhen it finishes, look at what it produced:\nls resscan_single/\nThe key file is SRR10842836_homscan.tsv — one row per detected AMR gene, with all the normalised metrics (including the default RPKPMC) as columns. There’s also a VarScan table for point-mutation resistance and interactive HTML coverage plots.\n\n\n\n\n\n\nTipWhat are all these files, columns, and metrics?\n\n\n\nThe output reference breaks down every file ResScan writes, what each column means, how to decode the metric names, and the one label worth understanding up front — multiple. Worth a look before you dive into the numbers.\n\n\nThat’s one sample. Doing it 36 times by hand would be tedious and error-prone — so ResScan ships a batch mode.",
+    "crumbs": [
+      "Overview",
+      "The workflow",
+      "Step 2 · Quantify with ResScan"
+    ]
+  },
+  {
+    "objectID": "resscan.html#b-all-36-at-once-batch-mode",
+    "href": "resscan.html#b-all-36-at-once-batch-mode",
+    "title": "Step 2 · Quantifying AMR with ResScan",
+    "section": "2b · All 36 at once (batch mode)",
+    "text": "2b · All 36 at once (batch mode)\nresscan_batch runs ResScan across every sample listed in a samplesheet — a plain CSV that is both the batch’s input and a durable record of exactly what you ran (keep it with your results). Each line is one sample: its name, then its read file(s). We ship one ready to go — take a look:\nhead -3 data/samplesheet.csv\nSRR10842836,vanished/vanished_reads/SRR10842836_1.fastq.gz,vanished/vanished_reads/SRR10842836_2.fastq.gz\nSRR10842837,vanished/vanished_reads/SRR10842837_1.fastq.gz,vanished/vanished_reads/SRR10842837_2.fastq.gz\n...\nEach line is sample_id,R1,R2. Commas separate a run’s mates; semicolons separate runs — so a sample sequenced across two runs goes on one line as SAMPLE,run1_R1,run1_R2;run2_R1,run2_R2.\n\n\n\n\n\n\nNoteList all of a sample’s reads together\n\n\n\nPooling every run for a sample is what makes the lateral coverage metric meaningful — a gene’s coverage along its length is only correct when the full set of that sample’s reads is considered at once. (This is the same -i format resscan uses for a single sample — see the ResScan README.)\n\n\n\n\n\n\n\n\nPaths are relative to where you launch. The paths above are relative to your working directory (this repo’s root, where the vanished/ folder from Step 1 lives); resscan_batch resolves them for you. Absolute paths work too.\n\n\n\n\n\n\n\n\n\nTipPrefer to build your own samplesheet?\n\n\n\n\n\nThe helper create_samplesheet_from_mapping stamps a samplesheet out of a simple sample_id,file_prefix mapping — e.g.\ncreate_samplesheet_from_mapping --mapping data/sampleid2fileprefix.csv \\\n    --fastq-dir vanished/vanished_reads --out samplesheet.csv\nOr just write the CSV by hand in the format above. Either way, the batch only ever reads the samplesheet.\n\n\n\nNow run the whole batch on the shipped samplesheet. --parallel sets how many samples run at once and --threads how many cores each gets — tune both to your machine:\nresscan_batch \\\n    --samplesheet data/samplesheet.csv \\\n    --card resscan_CARD_v4.0.1 \\\n    --out SinkReplacementBatch \\\n    --parallel 4 \\\n    --threads 2\n N E X T F L O W   ~  version 26.04.x\nexecutor &gt;  local\n\n[..] RESSCAN (SRR10842854) [100%] 36 of 36 ✔\n\n--- Batch Run Complete ---\nStatus:  SUCCESS",
+    "crumbs": [
+      "Overview",
+      "The workflow",
+      "Step 2 · Quantify with ResScan"
+    ]
+  },
+  {
+    "objectID": "resscan.html#c-consolidate-into-one-set-of-tables",
+    "href": "resscan.html#c-consolidate-into-one-set-of-tables",
+    "title": "Step 2 · Quantifying AMR with ResScan",
+    "section": "2c · Consolidate into one set of tables",
+    "text": "2c · Consolidate into one set of tables\nBatch mode writes a folder per sample. resscan_aggregate pivots them into wide, analysis-ready tables — one file per metric, samples as columns:\nresscan_aggregate \\\n    -s data/samplesheet.csv \\\n    -i SinkReplacementBatch \\\n    -o SinkReplacementBatchReports \\\n    -p SR\nls SinkReplacementBatchReports/ | head\nYou’ll get files like SR_homscan_RPKPMC.tsv, SR_homscan_RPKM.tsv, SR_varscan_RPKPMC.tsv, … — the exact shape the analysis uses. (On this subset they’ll be sparse; the full-depth versions are already in data/reports_full/, which Step 3 uses.)",
+    "crumbs": [
+      "Overview",
+      "The workflow",
+      "Step 2 · Quantify with ResScan"
+    ]
+  },
+  {
+    "objectID": "resscan.html#tidy-up",
+    "href": "resscan.html#tidy-up",
+    "title": "Step 2 · Quantifying AMR with ResScan",
+    "section": "Tidy up",
+    "text": "Tidy up\nrm -rf work .nextflow*\nmamba deactivate\nYou’ve quantified AMR the recommended way. Next, get to know the output in the output reference, or head straight to Step 3 · Analysis.",
+    "crumbs": [
+      "Overview",
+      "The workflow",
+      "Step 2 · Quantify with ResScan"
+    ]
+  },
+  {
+    "objectID": "output-reference.html",
+    "href": "output-reference.html",
+    "title": "Reference · Understanding ResScan’s output",
+    "section": "",
+    "text": "You’ve run ResScan. Now let’s read what it produced — the files, the columns, the metric names, and one word that trips everyone up: multiple. Keep this page open in a tab; it’s a lookup, not a lesson.",
+    "crumbs": [
+      "Overview",
+      "The workflow",
+      "— Output reference"
+    ]
+  },
+  {
+    "objectID": "output-reference.html#what-a-run-produces",
+    "href": "output-reference.html#what-a-run-produces",
+    "title": "Reference · Understanding ResScan’s output",
+    "section": "What a run produces",
+    "text": "What a run produces\nA single resscan run makes one folder named after your -o prefix. Batch mode makes one such folder per sample. Inside:\n\n\n\n\n\n\n\nFile / folder\nWhat it is\n\n\n\n\n&lt;prefix&gt;_homscan.tsv\nThe main table. One row per detected AMR gene (homology models — whole-gene presence). All metrics as columns.\n\n\n&lt;prefix&gt;_homscan_detailed.tsv\nThe same, but one row per read-to-gene hit — the raw evidence behind the summary.\n\n\n&lt;prefix&gt;_varscan.tsv\nAMR from point mutations — one row per resistance-conferring variant detected.\n\n\n&lt;prefix&gt;_homscan_html/\nInteractive per-gene coverage plots (open in a browser) — see where along each gene reads landed.\n\n\n&lt;prefix&gt;_varscan_html/\nThe same, for the variant hits.\n\n\nlogs/, tmp/\nRun logs and intermediates — safe to ignore (or delete).\n\n\n\nThe two .tsv files are what you analyse. The HTML plots are how you sanity-check a hit — a real gene shows reads spread along its length, not piled on one spot.",
+    "crumbs": [
+      "Overview",
+      "The workflow",
+      "— Output reference"
+    ]
+  },
+  {
+    "objectID": "output-reference.html#homscan-vs-varscan-both-are-genes",
+    "href": "output-reference.html#homscan-vs-varscan-both-are-genes",
+    "title": "Reference · Understanding ResScan’s output",
+    "section": "HomScan vs VarScan — both are genes",
+    "text": "HomScan vs VarScan — both are genes\nThis distinction confuses people, so plainly: both tables report genes. The difference is how resistance is detected.\n\n\n\n\n\n\n\n\n\nHomScan (_homscan.tsv)\nVarScan (_varscan.tsv)\n\n\n\n\nDetects resistance by…\npresence of a whole resistance gene (homology)\na specific point mutation in an otherwise-normal gene\n\n\nCARD model\nhomolog model\nprotein-variant & rRNA-variant models\n\n\nTypical example\nKPC, TEM β-lactamases (the gene is the resistance)\ngyrA S83L, 16S rRNA mutations (the mutation is the resistance)\n\n\n\nSo a fluoroquinolone-resistant E. coli carries a normal-looking gyrA gene — only a single base tells you it’s resistant. That’s VarScan’s job; HomScan would just see “a gyrA.” You want both.\n\nAnatomy of an ARO id\nEvery row is keyed by a CARD ARO (Antibiotic Resistance Ontology) id. ResScan formats it so you can read it at a glance:\nARO_3002530__AAC_3_-Ib__H\nARO_3003411__Ecol_16S_TET__R__a964g\n└──┬─────┘   └───┬────┘  │   └─┬─┘\n accession     gene name  │   mutation (a→g at position 964)\n                          └─ model code\nModel code — the trailing letter: H homolog · V protein variant · R rRNA variant · O overexpression · K knockout. H rows live in HomScan; the mutation-based codes drive VarScan.",
+    "crumbs": [
+      "Overview",
+      "The workflow",
+      "— Output reference"
+    ]
+  },
+  {
+    "objectID": "output-reference.html#the-columns",
+    "href": "output-reference.html#the-columns",
+    "title": "Reference · Understanding ResScan’s output",
+    "section": "The columns",
+    "text": "The columns\nBoth .tsv files share the same five annotation columns, then the metrics:\n\n\n\n\n\n\n\nColumn\nMeaning\n\n\n\n\nAMR_Gene_Family\nThe CARD family the gene belongs to (e.g. KPC beta-lactamase).\n\n\nARO\nThe ARO id (see above).\n\n\nARO_Name\nHuman-readable gene / variant name.\n\n\nDrug_Class\nAntibiotic class(es) affected — ;-separated if several.\n\n\nResistance_Mechanism\nHow it works (e.g. antibiotic inactivation).\n\n\nmetrics…\nOne column per abundance metric (next section).",
+    "crumbs": [
+      "Overview",
+      "The workflow",
+      "— Output reference"
+    ]
+  },
+  {
+    "objectID": "output-reference.html#the-metrics-read-the-name-know-the-number",
+    "href": "output-reference.html#the-metrics-read-the-name-know-the-number",
+    "title": "Reference · Understanding ResScan’s output",
+    "section": "The metrics — read the name, know the number",
+    "text": "The metrics — read the name, know the number\nThere are fifteen metric columns, but you don’t memorise them — you decode them. Every name is built from three parts:\n [ R | F ]  PK  [ '' | G | M | PC | PMC | PGC ]\n   │        │      └─ what you divide by (the denominator)\n   │        └─ Per Kilobase of gene length (always)\n   └─ counting Reads or Fragments\nPart 1 — Reads or Fragments. R… counts reads; F… counts fragments (a read pair = one DNA fragment). ResScan computes both families for every gene; the read-based metrics are the default — the per-cell RPKPMC below is the recommended headline number.\nPart 2 — PK. Every metric divides by gene length in kb, so a long gene and a short gene are comparable.\nPart 3 — the denominator — this is the one that matters:\n\n\n\n\n\n\n\n\nSuffix\nDivides by…\nAnswers\n\n\n\n\n(none) — RPK/FPK\nnothing else\nraw length-normalised count\n\n\nG — RPKG/FPKG\ntotal gigabases sequenced\nabundance per unit of data\n\n\nM — RPKM/FPKM\ntotal millions of reads/fragments\nthe classic metagenomics unit\n\n\nPC — RPKPC/FPKPC\nper bacterial cell (via single-copy genes)\ncopies per cell\n\n\nPMC — RPKPMC/FPKPMC\nper million cells\ncopies per cell, scaled ×10⁶\n\n\nPGC — RPKPGC/FPKPGC\nper billion cells\ncopies per cell, scaled ×10⁹\n\n\n\nPlus two standalone columns: Read_Count / Fragment_Count (the raw tallies) and Lateral_Coverage_% (how much of the gene’s length was actually covered — your best single guard against a spurious hit).\n\n\n\n\n\n\nTipWhich one should I use? RPKPMC\n\n\n\nRPKPMC is ResScan’s preferred default metric: read-based, length-normalised, and scaled per bacterial cell against universal single-copy genes — so it’s comparable across samples of different depth and not thrown off by inflation from non-bacterial (e.g. human) reads. The M scaling just turns tiny per-cell fractions into readable numbers. This is the metric the analysis page uses, and the reason host removal is safe rather than sacred. ResScan still reports the full family of metrics above for anyone who needs them — a fuller account of why RPKPMC makes the best default is the subject of a separate, forthcoming paper.",
+    "crumbs": [
+      "Overview",
+      "The workflow",
+      "— Output reference"
+    ]
+  },
+  {
+    "objectID": "output-reference.html#the-word-multiple",
+    "href": "output-reference.html#the-word-multiple",
+    "title": "Reference · Understanding ResScan’s output",
+    "section": "The word multiple",
+    "text": "The word multiple\nShort reads sometimes can’t be pinned to a single gene — a fragment matches several CARD alleles equally well. ResScan refuses to guess, and labels it multiple rather than arbitrarily crediting one gene. You’ll see it two ways:\n\nIn the ARO column: multiple[…] — the read hit several alleles, and the bracket lists exactly which ones (family;ARO pairs, |-separated). Fully transparent: you can see the candidates.\nIn the AMR_Gene_Family column: multiple — used only when even the family can’t be agreed on. If most of the tied alleles belong to one family (above a consensus threshold), ResScan keeps that family name and only the ARO stays multiple[…]; if they’re spread across families, the family itself becomes multiple.\n\nIts metrics are still computed honestly (gene length is averaged over the tied alleles). Practically: a multiple row is real resistance you can trust at the family level (often even the specific family), just not resolved to one exact allele — usually a limit of read length, not of the tool.\n\n\n\n\n\n\nWarningDon’t drop multiple rows\n\n\n\nThey’re genuine hits. In the sink data, multiple is one of the more abundant “families” precisely because closely related β-lactamase alleles are hard to tell apart from short reads — discarding it would throw away real signal.",
+    "crumbs": [
+      "Overview",
+      "The workflow",
+      "— Output reference"
+    ]
+  },
+  {
+    "objectID": "output-reference.html#batch-mode-the-aggregated-tables",
+    "href": "output-reference.html#batch-mode-the-aggregated-tables",
+    "title": "Reference · Understanding ResScan’s output",
+    "section": "Batch mode: the aggregated tables",
+    "text": "Batch mode: the aggregated tables\nresscan_aggregate takes all those per-sample _homscan.tsv / _varscan.tsv files and pivots them into one file per metric, with the five annotation columns then one column per sample:\nSR_homscan_RPKPMC.tsv               SR_varscan_RPKPMC.tsv\nSR_homscan_Lateral_Coverage_%.tsv   … (one per metric, ×2 for hom/var)\nThat’s the shape the analysis reads: pick the file for the metric you want (RPKPMC by default), and every sample is already a column.",
+    "crumbs": [
+      "Overview",
+      "The workflow",
+      "— Output reference"
+    ]
+  },
+  {
+    "objectID": "appendix.html",
+    "href": "appendix.html",
+    "title": "Appendix · Using your own data",
+    "section": "",
+    "text": "You’ve run the whole workflow on a toy. Here’s everything that changes when you point it at real reads — plus the fixes for the snags people usually hit.",
+    "crumbs": [
+      "Overview",
+      "Go further",
+      "Appendix · Your own data"
+    ]
+  },
+  {
+    "objectID": "appendix.html#use-the-real-human-index",
+    "href": "appendix.html#use-the-real-human-index",
+    "title": "Appendix · Using your own data",
+    "section": "1 · Use the real human index",
+    "text": "1 · Use the real human index\nThis is the one non-negotiable swap. The toy_human index that shipped with the repo is only the human mitochondrion — a stand-in so Step 1 runs in seconds. It removes almost no host DNA.\n\n\n\n\n\n\nWarningNever run the toy index on real data\n\n\n\nIt will silently pass through the vast majority of human reads — into your results and, worse, into any files you archive. On real samples, always dehost against the full human genome.\n\n\nBuild a real host index once, then reuse it forever. Grab a decoy-aware human reference (T2T-CHM13 or GRCh38) and index it with the same bowtie2-build VANISH uses:\n# ~3 GB download; the index build takes a while and needs ~16 GB RAM\nwget -O GRCh38.fa.gz \\\n  https://ftp.ensembl.org/pub/release-110/fasta/homo_sapiens/dna/Homo_sapiens.GRCh38.dna.primary_assembly.fa.gz\ngunzip GRCh38.fa.gz\n\nbowtie2-build --threads 8 GRCh38.fa human_GRCh38\nThen point VANISH at it instead of the toy — everything else in Step 1 is identical:\nvanish --read_pairs read_pairs.csv \\\n       --fastq_dir /path/to/your/reads \\\n       --host_index human_GRCh38 \\\n       --cpus 8\nNow the vanish_filtering_report.csv will show host removal doing real work.",
+    "crumbs": [
+      "Overview",
+      "Go further",
+      "Appendix · Your own data"
+    ]
+  },
+  {
+    "objectID": "appendix.html#bring-your-own-reads",
+    "href": "appendix.html#bring-your-own-reads",
+    "title": "Appendix · Using your own data",
+    "section": "2 · Bring your own reads",
+    "text": "2 · Bring your own reads\nTwo small things change for your own samples:\n\nMate naming. Tell vanish-prep how your files name their mates. Ours were _1 / _2; yours might be _R1 / _R2:\nvanish-prep --fastq_dir /path/to/your/reads --r1 \"_R1\" --r2 \"_R2\" --out read_pairs.csv\nMultiple runs per sample. If a sample was sequenced more than once, list all its reads on one samplesheet line — mates joined by commas, runs separated by semicolons:\nSAMPLE_A,runX_R1.fq.gz,runX_R2.fq.gz;runY_R1.fq.gz,runY_R2.fq.gz\nPooling every run per sample is what makes the lateral coverage metric honest (see Step 2).\n\nEverything downstream — resscan_batch, resscan_aggregate, the whole analysis — is unchanged. Same commands, your data.",
+    "crumbs": [
+      "Overview",
+      "Go further",
+      "Appendix · Your own data"
+    ]
+  },
+  {
+    "objectID": "appendix.html#keep-the-database-current",
+    "href": "appendix.html#keep-the-database-current",
+    "title": "Appendix · Using your own data",
+    "section": "3 · Keep the database current",
+    "text": "3 · Keep the database current\nCARD is updated regularly. To rebuild against a newer release, download it from card.mcmaster.ca and rebuild — same two steps as in Setup, just a new version string:\nresscan_build_db -i CARD_raw -d resscan_CARD_v4.x.y\nRecord which CARD version you used with your results — resistome numbers aren’t comparable across database versions.",
+    "crumbs": [
+      "Overview",
+      "Go further",
+      "Appendix · Your own data"
+    ]
+  },
+  {
+    "objectID": "appendix.html#scale-cost-and-cleanup",
+    "href": "appendix.html#scale-cost-and-cleanup",
+    "title": "Appendix · Using your own data",
+    "section": "4 · Scale, cost, and cleanup",
+    "text": "4 · Scale, cost, and cleanup\n\nThreads vs. parallel. In resscan_batch, --parallel is how many samples run at once and --threads is cores per sample. Total cores used ≈ parallel × threads — set both to fit your machine, not beyond it.\nDisk. Nextflow’s work/ directory grows fast and outlives the run. Delete it once you have the results you want:\nrm -rf work .nextflow*\nEnvironments. mamba deactivate when you’re done, and remove an env entirely with mamba env remove -n vanish-env (or resscan-env).",
+    "crumbs": [
+      "Overview",
+      "Go further",
+      "Appendix · Your own data"
+    ]
+  },
+  {
+    "objectID": "appendix.html#troubleshooting",
+    "href": "appendix.html#troubleshooting",
+    "title": "Appendix · Using your own data",
+    "section": "5 · Troubleshooting",
+    "text": "5 · Troubleshooting\n\n\n\nSymptom\nLikely cause & fix\n\n\n\n\ncommand not found: vanish / resscan\nThe environment isn’t active — mamba activate vanish-env (or resscan-env).\n\n\nenvironment.yml … pip install . fails\nYou must be inside the cloned repo when creating the env: ( cd tools/vanish && mamba env create -f environment.yml ).\n\n\nVANISH removes ~0 host reads\nYou’re on the toy index. Build and use the real human index (§1).\n\n\nERROR: Samplesheet '…' not found\nPath is relative to where you launched. Run from the repo root, or pass an absolute path.\n\n\nDuplicate Sample IDs detected\nTwo rows share a sample_id. If it’s the same sample across runs, merge them onto one line with ;.\n\n\nPer-sample ResScan tables are empty\nExpected on the 10K subset — too shallow. Depth, not a bug (see Step 2).\n\n\nNextflow work/ filled the disk\nrm -rf work .nextflow* after each successful run.\n\n\nAnalysis fold-changes look wrong / miss known genes\nAggregate per sample first, then average — don’t mean() over raw gene×sample cells (see Step 3).\n\n\n\nThat’s the whole workflow, toy to real. Clean reads in, calibrated per-cell numbers out, a resistome you can actually reason about.",
+    "crumbs": [
+      "Overview",
+      "Go further",
+      "Appendix · Your own data"
+    ]
+  },
+  {
+    "objectID": "analysis.html",
+    "href": "analysis.html",
+    "title": "Step 3 · Analysis — reading the resistome",
+    "section": "",
+    "text": "You’ve run the machinery. Now for the point of it all: what do the numbers say?\nThe story of these sinks, in four questions:",
+    "crumbs": [
+      "Overview",
+      "The workflow",
+      "Step 3 · Analysis"
+    ]
+  },
+  {
+    "objectID": "analysis.html#setup",
+    "href": "analysis.html#setup",
+    "title": "Step 3 · Analysis — reading the resistome",
+    "section": "Setup",
+    "text": "Setup\nlibrary(readr); library(dplyr); library(tidyr)\nlibrary(ggplot2); library(forcats); library(stringr); library(vegan)\n\nINT &lt;- c(Before = \"#4C72B0\", After = \"#DD8452\")   # a consistent palette\n\nmeta &lt;- read_csv(\"data/reports_full/metadata.csv\", show_col_types = FALSE) |&gt;\n  rename(sample = 1) |&gt;\n  mutate(intervention = factor(if_else(Intervention == \"Old\", \"Before\", \"After\"),\n                               levels = c(\"Before\", \"After\")))\n\namr &lt;- read_tsv(\"data/reports_full/SR_homscan_RPKPMC.tsv\", show_col_types = FALSE)\namr is a wide table: one row per AMR gene, five annotation columns (AMR_Gene_Family, ARO, ARO_Name, Drug_Class, Resistance_Mechanism), then one column of RPKPMC per sample. Let’s melt it long and attach the metadata:\nanno &lt;- c(\"AMR_Gene_Family\",\"ARO\",\"ARO_Name\",\"Drug_Class\",\"Resistance_Mechanism\")\nlong &lt;- amr |&gt;\n  pivot_longer(-all_of(anno), names_to = \"sample\", values_to = \"rpkpmc\") |&gt;\n  left_join(meta, by = \"sample\")\n\n\n\n\n\n\nImportantRPKPMC — resistance per bacterial cell\n\n\n\nRPKPMC is ResScan’s preferred default metric: resistance-gene copies per bacterial cell, calibrated against universal single-copy genes rather than against total reads. Because the denominator is bacterial cells, it stays comparable across samples of different depth and composition — which is also why the host-removal step pays off: stray human reads match neither the AMR genes nor the bacterial markers, so they can’t silently inflate or deflate the numbers the way they would with a total-reads metric like RPKM. ResScan reports a whole family of metrics alongside it (see the output reference); RPKPMC is simply the one to reach for by default.",
+    "crumbs": [
+      "Overview",
+      "The workflow",
+      "Step 3 · Analysis"
+    ]
+  },
+  {
+    "objectID": "analysis.html#how-much-amr-load-per-sink",
+    "href": "analysis.html#how-much-amr-load-per-sink",
+    "title": "Step 3 · Analysis — reading the resistome",
+    "section": "1 · How much? AMR load per sink",
+    "text": "1 · How much? AMR load per sink\nSum RPKPMC across all genes in a sample and you get its total resistance load — copies of resistance per cell, summed over every gene detected.\nper_sample &lt;- long |&gt;\n  group_by(sample, intervention) |&gt;\n  summarise(total_load = sum(rpkpmc), n_genes = sum(rpkpmc &gt; 0), .groups = \"drop\")\n\nggplot(per_sample, aes(intervention, total_load, fill = intervention)) +\n  geom_boxplot(width = .5, alpha = .85, outlier.shape = NA) +\n  geom_jitter(width = .12, size = 2, alpha = .7) +\n  scale_fill_manual(values = INT) +\n  scale_y_continuous(labels = scales::label_number(scale_cut = scales::cut_short_scale())) +\n  labs(title = \"AMR load per sink\", x = NULL, y = \"Total RPKPMC (per cell)\") +\n  theme_minimal(base_size = 13) + theme(legend.position = \"none\")\n\n\n\nAMR load per sink, before vs after\n\n\nThe median load more than tripled — roughly 332,000 → 1.19 million RPKPMC per sink. Replacing the plumbing didn’t reset the resistome; the new drains came back carrying more resistance per cell than the ones they replaced. (This is the headline of Kotay et al. 2025, reproduced from raw reads with your own hands.)",
+    "crumbs": [
+      "Overview",
+      "The workflow",
+      "Step 3 · Analysis"
+    ]
+  },
+  {
+    "objectID": "analysis.html#what-kind-composition-shift",
+    "href": "analysis.html#what-kind-composition-shift",
+    "title": "Step 3 · Analysis — reading the resistome",
+    "section": "2 · What kind? Composition shift",
+    "text": "2 · What kind? Composition shift\nMore resistance is one thing; different resistance is another. To ask whether the whole community’s makeup shifted, we put every sample in “resistome space” (each gene a dimension), measure how dissimilar samples are (Bray–Curtis), and squash that down to two dimensions with NMDS.\ncomm &lt;- t(as.matrix(amr[, meta$sample]))     # samples x genes\nset.seed(1)\nnmds &lt;- metaMDS(comm, distance = \"bray\", trace = FALSE)\n\nsc &lt;- as.data.frame(vegan::scores(nmds, \"sites\")) |&gt;\n  tibble::rownames_to_column(\"sample\") |&gt;\n  left_join(meta, \"sample\")\n\nggplot(sc, aes(NMDS1, NMDS2, colour = intervention)) +\n  geom_point(size = 3, alpha = .9) +\n  stat_ellipse(aes(group = intervention), linewidth = .4) +\n  scale_colour_manual(values = INT) +\n  labs(title = \"AMR community composition (NMDS, Bray-Curtis)\", colour = NULL) +\n  theme_minimal(base_size = 13)\n\n\n\nNMDS of AMR community composition\n\n\nThe two clouds overlap but pull apart — Before sinks sit left, After sinks shift right. So it isn’t only more resistance; the kind of resistance moved too. The overlap is the honest part of the picture: this is a shift in a noisy biological system, not a clean switch.",
+    "crumbs": [
+      "Overview",
+      "The workflow",
+      "Step 3 · Analysis"
+    ]
+  },
+  {
+    "objectID": "analysis.html#which-genes-drove-it",
+    "href": "analysis.html#which-genes-drove-it",
+    "title": "Step 3 · Analysis — reading the resistome",
+    "section": "3 · Which genes drove it?",
+    "text": "3 · Which genes drove it?\nFinally, name names. Roll RPKPMC up to gene family, average within each group, and rank families by how much they changed (log2 fold-change, After / Before).\nfam &lt;- long |&gt;\n  group_by(AMR_Gene_Family, sample, intervention) |&gt;\n  summarise(load = sum(rpkpmc), .groups = \"drop\") |&gt;      # per-sample family total\n  group_by(AMR_Gene_Family, intervention) |&gt;\n  summarise(mean_load = mean(load), .groups = \"drop\") |&gt;   # then mean across sinks\n  pivot_wider(names_from = intervention, values_from = mean_load) |&gt;\n  mutate(log2fc = log2((After + 1) / (Before + 1)),\n         family = stringr::str_trunc(AMR_Gene_Family, 32)) |&gt;\n  slice_max(After + Before, n = 18)                        # 18 most abundant families\n\nggplot(fam, aes(log2fc, fct_reorder(family, log2fc))) +\n  geom_col(fill = \"#C44E52\", width = .72) +\n  geom_vline(xintercept = 0, colour = \"grey60\") +\n  labs(title = \"Top gene families: change after replacement\",\n       subtitle = \"log2 fold-change (After / Before); 18 most abundant families\",\n       x = \"log2 fold-change\", y = NULL) +\n  theme_minimal(base_size = 11)\n\n\n\nTop gene families by fold-change\n\n\n\n\n\n\n\n\nWarningMind the aggregation\n\n\n\nWe sum genes within each sample first, then average across sinks — not one big mean() over every gene×sample cell. Average first and a family with many low-abundance genes gets washed out; the order of operations is the difference between seeing KPC at the top and missing it entirely.\n\n\nAlmost every abundant family rose, but two β-lactamases lead the board: TEM (log2fc ≈ 4.35) and KPC (≈ 3.67) — the carbapenem-resistance family behind much of the concern about hospital Klebsiella. Aminoglycoside families (ANT, AAC, APH) and efflux/MFS systems climbed too. A handful of environmental β-lactamases (BlaB, GOB, CME) went the other way — the incumbent drain community being replaced by a new one.",
+    "crumbs": [
+      "Overview",
+      "The workflow",
+      "Step 3 · Analysis"
+    ]
+  },
+  {
+    "objectID": "analysis.html#the-resistance-a-gene-catalogue-cant-see-varscan",
+    "href": "analysis.html#the-resistance-a-gene-catalogue-cant-see-varscan",
+    "title": "Step 3 · Analysis — reading the resistome",
+    "section": "4 · The resistance a gene catalogue can’t see (VarScan)",
+    "text": "4 · The resistance a gene catalogue can’t see (VarScan)\nEverything above counted acquired genes — resistance you can spot because a whole gene is present. But some of the most clinically important resistance isn’t a gene you gain; it’s a single base that changes in a gene you already have: one point mutation in gyrA and E. coli shrugs off fluoroquinolones; one in 16S rRNA and aminoglycosides stop working.\nTools that only catalogue genes are blind to this — the mutated gene looks identical to the normal one at the family level. ResScan’s VarScan module is built for exactly this job, and it’s a big part of what sets ResScan apart from other comprehensive AMR pipelines. It ships in the same run, in SR_varscan_*.tsv, on the same RPKPMC scale — so we can ask the same before/after question of point-mutation resistance.\nvar &lt;- read_tsv(\"data/reports_full/SR_varscan_RPKPMC.tsv\", show_col_types = FALSE)\n\nvlong &lt;- var |&gt;\n  pivot_longer(-all_of(anno), names_to = \"sample\", values_to = \"rpkpmc\") |&gt;\n  left_join(meta, by = \"sample\")\n\n# burden: total point-mutation resistance, and how many distinct variants, per sink\nvlong |&gt;\n  group_by(sample, intervention) |&gt;\n  summarise(total = sum(rpkpmc), n_var = sum(rpkpmc &gt; 0), .groups = \"drop\") |&gt;\n  group_by(intervention) |&gt;\n  summarise(median_load = median(total), mean_variants = mean(n_var))\nThe point-mutation burden rose about four-fold (median ≈ 26 → 104 RPKPMC), and the number of distinct resistance variants per sink went from ~1 to ~3. Now group by the mutated target and drug, and draw each target’s Before→After move on a log scale:\nfam &lt;- vlong |&gt;\n  mutate(lab = case_when(\n    str_detect(AMR_Gene_Family, \"16S|16s\")                                            ~ \"16S rRNA (aminoglycoside)\",\n    str_detect(AMR_Gene_Family, \"23S\") & str_detect(AMR_Gene_Family, \"macrolide\")     ~ \"23S rRNA (macrolide)\",\n    str_detect(AMR_Gene_Family, \"23S\") & str_detect(AMR_Gene_Family, \"oxazolidinone\") ~ \"23S rRNA (oxazolidinone)\",\n    str_detect(AMR_Gene_Family, \"23S\") & str_detect(AMR_Gene_Family, \"pleuromutilin\") ~ \"23S rRNA (pleuromutilin)\",\n    str_detect(AMR_Gene_Family, \"gyrA\")  ~ \"gyrA (fluoroquinolone)\",\n    str_detect(AMR_Gene_Family, \"gyrB\")  ~ \"gyrB (fluoroquinolone)\",\n    str_detect(AMR_Gene_Family, \"UhpT\")  ~ \"UhpT (fosfomycin)\",\n    TRUE ~ stringr::str_trunc(AMR_Gene_Family, 30))) |&gt;\n  group_by(lab, sample, intervention) |&gt;\n  summarise(load = sum(rpkpmc), .groups = \"drop\") |&gt;\n  group_by(lab, intervention) |&gt;\n  summarise(mean_load = mean(load), .groups = \"drop\") |&gt;\n  pivot_wider(names_from = intervention, values_from = mean_load) |&gt;\n  arrange(After + Before) |&gt;\n  mutate(lab = factor(lab, levels = lab),\n         Before = pmax(Before, 0.05), After = pmax(After, 0.05))  # floor so 0s plot on log\n\nggplot(fam, aes(y = lab)) +\n  geom_segment(aes(x = Before, xend = After, yend = lab), colour = \"grey70\", linewidth = 1.1) +\n  geom_point(aes(x = Before, colour = \"Before\"), size = 3.4) +\n  geom_point(aes(x = After,  colour = \"After\"),  size = 3.4) +\n  scale_colour_manual(values = INT, breaks = c(\"Before\", \"After\")) +\n  scale_x_log10() +\n  labs(title = \"Point-mutation resistance (VarScan): before -&gt; after\",\n       subtitle = \"Mean RPKPMC per sink, by mutated target (drug affected); log scale\",\n       x = \"Mean RPKPMC (per cell, log scale)\", y = NULL, colour = NULL) +\n  theme_minimal(base_size = 12)\n\n\n\nVarScan point-mutation resistance before vs after\n\n\nRead left-to-right, and the clinical picture is pointed. Fosfomycin-resistant UhpT mutations went from a whisper to the loudest signal in the panel (≈2 → 563). Aminoglycoside-conferring 16S rRNA mutations climbed six-fold, and fluoroquinolone-resistant gyrA — absent before — showed up after. The lone retreat was gyrB (the other fluoroquinolone target). (Points sitting at the far-left floor were not detected before the swap.)\nNone of this is in the gene-catalogue tables — it’s resistance encoded one base at a time, in drugs (fluoroquinolones, aminoglycosides, fosfomycin) that matter at the bedside. Miss VarScan and you’d have declared these sinks clean of it.",
+    "crumbs": [
+      "Overview",
+      "The workflow",
+      "Step 3 · Analysis"
+    ]
+  },
+  {
+    "objectID": "analysis.html#the-take-home",
+    "href": "analysis.html#the-take-home",
+    "title": "Step 3 · Analysis — reading the resistome",
+    "section": "The take-home",
+    "text": "The take-home\nFour views, one conclusion: after the drains were replaced, the sink resistome came back larger (load tripled), different (composition shifted), clinically pointier in its acquired genes (KPC/TEM β-lactamases led the rise), and carrying more point-mutation resistance to fluoroquinolones, aminoglycosides, and fosfomycin (VarScan) — the last of which a gene-catalogue tool would never have seen. New plumbing, same problem — arguably worse.\n\n\n\n\n\n\nNoteGo deeper\n\n\n\nThis is the teaching cut — four questions, four figures. The full study analysis carries the rest: per-variant VarScan detail, drug-class and resistance-mechanism breakdowns, per-room and per-period trends, and formal tests (PERMANOVA on the Bray–Curtis distances). The same tables in data/reports_full/ support all of it — the tools you’ve now run are all you need to get there.\n\n\nWant to run this on your own samples? The Appendix covers the real human index, bring-your-own-reads, and cleanup.",
+    "crumbs": [
+      "Overview",
+      "The workflow",
+      "Step 3 · Analysis"
+    ]
+  },
+  {
+    "objectID": "index.html",
+    "href": "index.html",
+    "title": "ResScan Tutorial",
+    "section": "",
+    "text": "Hands-on tutorial · real ICU sink data\n  Quantify AMR with ResScan.\n  \n    A step-by-step walkthrough on real hospital sink-drain metagenomes: clean your\n    reads, quantify antibiotic resistance per bacterial cell, and\n    watch a resistome rebound after the plumbing was replaced — in about\n    15 minutes.\n  \n  \n    Start the tutorial →\n    See the analysis\n  \n  \n    Built on the Kotay et al. 2025 ICU sink study\n    Runs on Linux · macOS · WSL\n    Free — no account, no cluster\n  \n\n\nWhat you'll build, in three steps\n\n\n  \n    1\n    VANISH\n    QC & host removal\n    Quality-control every read and make the human DNA vanish — so you count\n    microbes, not people.\n  \n  \n    2\n    ResScan\n    Quantify AMR\n    Map what's left against CARD and report resistance per bacterial\n    cell — a metric that survives uneven depth.\n  \n  \n    3\n    R\n    Analysis\n    How much resistance, of what kind, driven by which genes — and see the\n    resistome climb after the swap.\n  \n\n\nYou'll do these in order — each step's page picks up where the\nlast left off. Begin with Setup.\n\nWhat you’ll run it on\n\nA bite-size slice of the real study — the first 10,000 read pairs from each of 36 sink-drain samples. Small enough to download in seconds and run on a laptop, yet enough to see every step work for real. The final analysis then uses the full-depth results (shipped with the repo), because that’s where the biology actually shows up.\nNew here? Start with the Overview for the story behind the data, or jump straight to Setup.\n\n\n\n\n Back to top"
+  },
+  {
+    "objectID": "overview.html",
+    "href": "overview.html",
+    "title": "Overview",
+    "section": "",
+    "text": "Replace a contaminated hospital sink and you’d expect the antibiotic-resistance problem to go down the drain. It didn’t.\nWhen Kotay et al. (2025, npj Antimicrobials & Resistance) ripped out and replaced the sink plumbing in six ICU rooms, the gleaming new drains were recolonised within weeks — and came back carrying more antibiotic resistance genes than the old ones, including mobile, clinically feared carbapenemases. The reservoir didn’t reset. It rebooted, worse.\nHow do you spot a surge like that in a soup of metagenomic reads? With the same two-tool workflow the study leaned on — and that’s exactly what you’ll run here.",
+    "crumbs": [
+      "Overview",
+      "Get started",
+      "Overview"
+    ]
+  },
+  {
+    "objectID": "overview.html#what-youll-do",
+    "href": "overview.html#what-youll-do",
+    "title": "Overview",
+    "section": "What you’ll do",
+    "text": "What you’ll do\nThree short steps, start to finish:\n\nVANISH — quality-control the reads and make the human DNA vanish.\nResScan — quantify the AMR genes that remain, normalised per bacterial cell.\nAnalysis — watch the resistome climb after the sinks were swapped.",
+    "crumbs": [
+      "Overview",
+      "Get started",
+      "Overview"
+    ]
+  },
+  {
+    "objectID": "overview.html#what-youll-run-it-on",
+    "href": "overview.html#what-youll-run-it-on",
+    "title": "Overview",
+    "section": "What you’ll run it on",
+    "text": "What you’ll run it on\nA bite-size slice of the real study: the first 10,000 read pairs from each of the 36 sink samples. Small enough to download in seconds and run on a laptop — enough to see every step work for real.\n\n\n\n\n\n\nNoteTen thousand reads is a keyhole view\n\n\n\nToo shallow for meaningful biology, but perfect for learning the mechanics. So the final analysis step uses the full-depth results (provided) — that’s where the science actually shows up. The complete raw data lives on NCBI SRA under BioProject PRJNA587635.",
+    "crumbs": [
+      "Overview",
+      "Get started",
+      "Overview"
+    ]
+  },
+  {
+    "objectID": "overview.html#at-a-glance",
+    "href": "overview.html#at-a-glance",
+    "title": "Overview",
+    "section": "At a glance",
+    "text": "At a glance\n\n\n\n\n\n\n\nYou’ll need\nLinux, macOS, or Windows (via WSL) · mamba/conda — we install everything else\n\n\nTime\n~15 minutes end-to-end on the subset\n\n\nFootprint\nThe tutorial data is tiny; the toy human index ships prebuilt. (Real-world dehosting needs the full ~4 GB human index — covered in the Appendix.)\n\n\nCost\nFree. No account, no cluster.\n\n\n\nReady when you are — head to Setup.",
+    "crumbs": [
+      "Overview",
+      "Get started",
+      "Overview"
+    ]
+  },
+  {
+    "objectID": "setup.html",
+    "href": "setup.html",
+    "title": "Setup",
+    "section": "",
+    "text": "A little one-time housekeeping: two small Conda environments and one database. Nextflow and everything else come inside the environments, and the toy human index is already in this repo — so there’s no 4 GB download here. Budget ~10 minutes, mostly waiting for Conda.",
+    "crumbs": [
+      "Overview",
+      "Get started",
+      "Setup"
+    ]
+  },
+  {
+    "objectID": "setup.html#get-the-tutorial-materials",
+    "href": "setup.html#get-the-tutorial-materials",
+    "title": "Setup",
+    "section": "1 · Get the tutorial materials",
+    "text": "1 · Get the tutorial materials\nClone this repository and move into it — it’s your working directory for the whole tutorial.\ngit clone https://github.com/hsgweon/resscan-tutorial.git\ncd resscan-tutorial\nInside, the teaching data is already prepared for you:\n\n\n\n\n\n\n\nPath\nWhat it is\n\n\n\n\ndata/rawdata_10K/\n36 samples × 10,000 read pairs — the reads you’ll process\n\n\ndata/host_index/toy_human.*\nPrebuilt toy human index (mitochondrion) — for dehosting\n\n\ndata/reports_full/\nFull-depth results — used in the analysis step\n\n\ndata/read_pairs.csv\nReady-made VANISH input",
+    "crumbs": [
+      "Overview",
+      "Get started",
+      "Setup"
+    ]
+  },
+  {
+    "objectID": "setup.html#install-vanish",
+    "href": "setup.html#install-vanish",
+    "title": "Setup",
+    "section": "2 · Install VANISH",
+    "text": "2 · Install VANISH\nVANISH does the QC and host removal. Clone it and build its environment (this also installs the vanish commands):\ngit clone https://github.com/hsgweon/vanish.git tools/vanish\n( cd tools/vanish && mamba env create -f environment.yml )",
+    "crumbs": [
+      "Overview",
+      "Get started",
+      "Setup"
+    ]
+  },
+  {
+    "objectID": "setup.html#install-resscan",
+    "href": "setup.html#install-resscan",
+    "title": "Setup",
+    "section": "3 · Install ResScan",
+    "text": "3 · Install ResScan\nResScan does the AMR quantification. Same pattern:\ngit clone https://github.com/hsgweon/resscan.git tools/resscan\n( cd tools/resscan && mamba env create -f environment.yml )\n\n\n\n\n\n\nNoteTwo tools, two environments\n\n\n\nYou’ll use vanish-env for Step 1 and resscan-env for Step 2 — one at a time. Always run mamba deactivate before switching to the other, so you’re never in the wrong environment.",
+    "crumbs": [
+      "Overview",
+      "Get started",
+      "Setup"
+    ]
+  },
+  {
+    "objectID": "setup.html#build-the-card-database",
+    "href": "setup.html#build-the-card-database",
+    "title": "Setup",
+    "section": "4 · Build the CARD database",
+    "text": "4 · Build the CARD database\nResScan maps reads against CARD. Download it once and prepare it with ResScan’s builder. We pin v4.0.1 so your results line up with the full-depth reports used later. Activate resscan-env for this, then deactivate when done:\nmamba activate resscan-env\n\nwget https://card.mcmaster.ca/download/0/broadstreet-v4.0.1.tar.bz2\nmkdir -p CARD_raw_v4.0.1\ntar -xvjf broadstreet-v4.0.1.tar.bz2 -C CARD_raw_v4.0.1\nresscan_build_db -i CARD_raw_v4.0.1 -d resscan_CARD_v4.0.1\n\nmamba deactivate\nThis creates a resscan_CARD_v4.0.1/ folder — that’s the --card path you’ll pass to ResScan. It’s sub-gigabyte and takes a minute or two to build.",
+    "crumbs": [
+      "Overview",
+      "Get started",
+      "Setup"
+    ]
+  },
+  {
+    "objectID": "setup.html#quick-check",
+    "href": "setup.html#quick-check",
+    "title": "Setup",
+    "section": "5 · Quick check",
+    "text": "5 · Quick check\nConfirm each tool is installed. Activate, check, deactivate:\nmamba activate vanish-env\nvanish --help | head -3\nmamba deactivate\n\nmamba activate resscan-env\nresscan --help | head -3\nmamba deactivate\nIf both print usage text, you’re ready for Step 1.",
+    "crumbs": [
+      "Overview",
+      "Get started",
+      "Setup"
+    ]
+  }
+]

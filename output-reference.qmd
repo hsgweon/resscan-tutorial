@@ -1,0 +1,158 @@
+---
+title: "Reference · Understanding ResScan's output"
+subtitle: "The files, the columns, the metric names — and the one label that trips everyone up: multiple."
+---
+
+You've run ResScan. Now let's read what it produced — the files, the columns, the
+metric names, and one word that trips everyone up: **`multiple`**. Keep this page open
+in a tab; it's a lookup, not a lesson.
+
+## What a run produces
+
+A single `resscan` run makes one folder named after your `-o` prefix. Batch mode
+makes one such folder *per sample*. Inside:
+
+| File / folder | What it is |
+|---|---|
+| `<prefix>_homscan.tsv` | **The main table.** One row per detected AMR *gene* (homology models — whole-gene presence). All metrics as columns. |
+| `<prefix>_homscan_detailed.tsv` | The same, but one row **per read-to-gene hit** — the raw evidence behind the summary. |
+| `<prefix>_varscan.tsv` | AMR from **point mutations** — one row per resistance-conferring variant detected. |
+| `<prefix>_homscan_html/` | Interactive per-gene **coverage plots** (open in a browser) — see *where* along each gene reads landed. |
+| `<prefix>_varscan_html/` | The same, for the variant hits. |
+| `logs/`, `tmp/` | Run logs and intermediates — safe to ignore (or delete). |
+
+The two `.tsv` files are what you analyse. The HTML plots are how you *sanity-check* a
+hit — a real gene shows reads spread along its length, not piled on one spot.
+
+## HomScan vs VarScan — both are genes
+
+This distinction confuses people, so plainly: **both tables report genes.** The
+difference is *how resistance is detected*.
+
+| | **HomScan** (`_homscan.tsv`) | **VarScan** (`_varscan.tsv`) |
+|---|---|---|
+| Detects resistance by… | **presence** of a whole resistance gene (homology) | a **specific point mutation** in an otherwise-normal gene |
+| CARD model | homolog model | protein-variant & rRNA-variant models |
+| Typical example | KPC, TEM β-lactamases (the gene *is* the resistance) | `gyrA` S83L, 16S rRNA mutations (the *mutation* is the resistance) |
+
+So a fluoroquinolone-resistant *E. coli* carries a normal-looking `gyrA` gene — only a
+single base tells you it's resistant. That's VarScan's job; HomScan would just see "a
+`gyrA`." You want both.
+
+### Anatomy of an ARO id
+
+Every row is keyed by a CARD **ARO** (Antibiotic Resistance Ontology) id. ResScan
+formats it so you can read it at a glance:
+
+```default
+ARO_3002530__AAC_3_-Ib__H
+ARO_3003411__Ecol_16S_TET__R__a964g
+└──┬─────┘   └───┬────┘  │   └─┬─┘
+ accession     gene name  │   mutation (a→g at position 964)
+                          └─ model code
+```
+
+**Model code** — the trailing letter: `H` homolog · `V` protein variant · `R` rRNA
+variant · `O` overexpression · `K` knockout. `H` rows live in HomScan; the
+mutation-based codes drive VarScan.
+
+## The columns
+
+Both `.tsv` files share the same five annotation columns, then the metrics:
+
+| Column | Meaning |
+|---|---|
+| `AMR_Gene_Family` | The CARD family the gene belongs to (e.g. `KPC beta-lactamase`). |
+| `ARO` | The ARO id (see above). |
+| `ARO_Name` | Human-readable gene / variant name. |
+| `Drug_Class` | Antibiotic class(es) affected — `;`-separated if several. |
+| `Resistance_Mechanism` | How it works (e.g. `antibiotic inactivation`). |
+| *metrics…* | One column per abundance metric (next section). |
+
+## The metrics — read the name, know the number
+
+There are fifteen metric columns, but you don't memorise them — you **decode** them.
+Every name is built from three parts:
+
+```default
+ [ R | F ]  PK  [ '' | G | M | PC | PMC | PGC ]
+   │        │      └─ what you divide by (the denominator)
+   │        └─ Per Kilobase of gene length (always)
+   └─ counting Reads or Fragments
+```
+
+**Part 1 — Reads or Fragments.** `R…` counts reads; `F…` counts **fragments** (a
+read *pair* = one DNA fragment). ResScan computes both families for every gene; the
+**read-based** metrics are the default — the per-cell `RPKPMC` below is the
+recommended headline number.
+
+**Part 2 — `PK`.** Every metric divides by gene length in kb, so a long gene and a
+short gene are comparable.
+
+**Part 3 — the denominator** — this is the one that matters:
+
+| Suffix | Divides by… | Answers |
+|---|---|---|
+| *(none)* — `RPK`/`FPK` | nothing else | raw length-normalised count |
+| `G` — `RPKG`/`FPKG` | total **gigabases** sequenced | abundance per unit of data |
+| `M` — `RPKM`/`FPKM` | total **millions of reads/fragments** | the classic metagenomics unit |
+| `PC` — `RPKPC`/`FPKPC` | **per bacterial cell** (via single-copy genes) | copies per cell |
+| `PMC` — **`RPKPMC`**/`FPKPMC` | per **million** cells | copies per cell, scaled ×10⁶ |
+| `PGC` — `RPKPGC`/`FPKPGC` | per **billion** cells | copies per cell, scaled ×10⁹ |
+
+Plus two standalone columns: `Read_Count` / `Fragment_Count` (the raw tallies) and
+`Lateral_Coverage_%` (how much of the gene's length was actually covered — your
+best single guard against a spurious hit).
+
+::: {.callout-tip}
+## Which one should I use? `RPKPMC`
+`RPKPMC` is ResScan's **preferred default metric**: read-based, length-normalised, and
+scaled **per bacterial cell** against universal single-copy genes — so it's comparable
+across samples of different depth *and* not thrown off by inflation from non-bacterial
+(e.g. human) reads. The `M` scaling just turns tiny per-cell fractions into readable
+numbers. This is the metric the [analysis page](analysis.qmd) uses, and the reason
+[host removal](vanish.qmd) is safe rather than sacred. ResScan still reports the full
+family of metrics above for anyone who needs them — a fuller account of why RPKPMC
+makes the best default is the subject of a separate, forthcoming paper.
+:::
+
+## The word `multiple`
+
+Short reads sometimes can't be pinned to a *single* gene — a fragment matches several
+CARD alleles equally well. ResScan refuses to guess, and labels it **`multiple`**
+rather than arbitrarily crediting one gene. You'll see it two ways:
+
+- **In the `ARO` column: `multiple[…]`** — the read hit several alleles, and the
+  bracket lists exactly which ones (`family;ARO` pairs, `|`-separated). Fully
+  transparent: you can see the candidates.
+- **In the `AMR_Gene_Family` column: `multiple`** — used only when even the *family*
+  can't be agreed on. If most of the tied alleles belong to one family (above a
+  consensus threshold), ResScan keeps that family name and only the `ARO` stays
+  `multiple[…]`; if they're spread across families, the family itself becomes
+  `multiple`.
+
+Its metrics are still computed honestly (gene length is averaged over the tied
+alleles). Practically: a `multiple` row is **real resistance you can trust at the
+family level** (often even the specific family), just not resolved to one exact
+allele — usually a limit of read length, not of the tool.
+
+::: {.callout-warning}
+## Don't drop `multiple` rows
+They're genuine hits. In the sink data, `multiple` is one of the more abundant
+"families" precisely because closely related β-lactamase alleles are hard to tell
+apart from short reads — discarding it would throw away real signal.
+:::
+
+## Batch mode: the aggregated tables
+
+`resscan_aggregate` takes all those per-sample `_homscan.tsv` / `_varscan.tsv` files
+and pivots them into **one file per metric**, with the five annotation columns then
+one column per sample:
+
+```default
+SR_homscan_RPKPMC.tsv               SR_varscan_RPKPMC.tsv
+SR_homscan_Lateral_Coverage_%.tsv   … (one per metric, ×2 for hom/var)
+```
+
+That's the shape the [analysis](analysis.qmd) reads: pick the file for the metric
+you want (`RPKPMC` by default), and every sample is already a column.

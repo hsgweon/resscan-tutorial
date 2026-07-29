@@ -1,0 +1,107 @@
+---
+title: "Setup"
+subtitle: "Two small Conda environments and one database — about ten minutes, mostly waiting."
+---
+
+A little one-time housekeeping: two small Conda environments and one database.
+Nextflow and everything else come *inside* the environments, and the toy human
+index is already in this repo — so there's no 4 GB download here. Budget ~10
+minutes, mostly waiting for Conda.
+
+::: {.callout-warning}
+## Read this first — the toy human index is for the tutorial only
+To keep things fast, this tutorial dehosts against a *stand-in* human genome — just
+the mitochondrion. It is **not** a real dehoster: it will leave almost all human DNA
+in your data. **Never use `toy_human` on a real dataset.** For real work, use the
+full human genome index (see the [Appendix](appendix.qmd)).
+:::
+
+::: {.callout-tip}
+## Prerequisites
+You need `mamba` (or `conda`) and `git`. If you don't have them, install
+[Miniforge](https://github.com/conda-forge/miniforge) — it gives you `mamba`.
+Everything below assumes **Linux, macOS, or Windows via WSL**. Wherever you see
+`mamba`, plain `conda` works too (just slower).
+:::
+
+## 1 · Get the tutorial materials
+
+Clone this repository and move into it — it's your working directory for the whole
+tutorial.
+
+```bash
+git clone https://github.com/hsgweon/resscan-tutorial.git
+cd resscan-tutorial
+```
+
+Inside, the teaching data is already prepared for you:
+
+| Path | What it is |
+| --- | --- |
+| `data/rawdata_10K/` | 36 samples × 10,000 read pairs — the reads you'll process |
+| `data/host_index/toy_human.*` | Prebuilt toy human index (mitochondrion) — for dehosting |
+| `data/reports_full/` | Full-depth results — used in the analysis step |
+| `data/read_pairs.csv` | Ready-made VANISH input |
+
+## 2 · Install VANISH
+
+VANISH does the QC and host removal. Clone it and build its environment (this also
+installs the `vanish` commands):
+
+```bash
+git clone https://github.com/hsgweon/vanish.git tools/vanish
+( cd tools/vanish && mamba env create -f environment.yml )
+```
+
+## 3 · Install ResScan
+
+ResScan does the AMR quantification. Same pattern:
+
+```bash
+git clone https://github.com/hsgweon/resscan.git tools/resscan
+( cd tools/resscan && mamba env create -f environment.yml )
+```
+
+::: {.callout-note}
+## Two tools, two environments
+You'll use `vanish-env` for Step 1 and `resscan-env` for Step 2 — **one at a time**.
+Always run `mamba deactivate` before switching to the other, so you're never in the
+wrong environment.
+:::
+
+## 4 · Build the CARD database
+
+ResScan maps reads against [CARD](https://card.mcmaster.ca/). Download it once and
+prepare it with ResScan's builder. We pin **v4.0.1** so your results line up with
+the full-depth reports used later. Activate `resscan-env` for this, then deactivate
+when done:
+
+```bash
+mamba activate resscan-env
+
+wget https://card.mcmaster.ca/download/0/broadstreet-v4.0.1.tar.bz2
+mkdir -p CARD_raw_v4.0.1
+tar -xvjf broadstreet-v4.0.1.tar.bz2 -C CARD_raw_v4.0.1
+resscan_build_db -i CARD_raw_v4.0.1 -d resscan_CARD_v4.0.1
+
+mamba deactivate
+```
+
+This creates a `resscan_CARD_v4.0.1/` folder — that's the `--card` path you'll pass
+to ResScan. It's sub-gigabyte and takes a minute or two to build.
+
+## 5 · Quick check
+
+Confirm each tool is installed. Activate, check, deactivate:
+
+```bash
+mamba activate vanish-env
+vanish --help | head -3
+mamba deactivate
+
+mamba activate resscan-env
+resscan --help | head -3
+mamba deactivate
+```
+
+If both print usage text, you're ready for **Step 1**.

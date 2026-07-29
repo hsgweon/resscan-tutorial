@@ -1,0 +1,76 @@
+---
+pagetitle: "ResScan Tutorial — quantify metagenomic AMR, hands-on with real data"
+description: "Clean your reads, quantify resistance per bacterial cell with ResScan, and watch a hospital resistome rebound — a hands-on tutorial on real data."
+sidebar: false
+toc: false
+page-layout: full
+---
+
+::: {.landing-wrap}
+
+```{=html}
+<section class="hero">
+  <img class="hero-logo" src="logo/ResScanLogo_web.png" alt="ResScan">
+  <div class="eyebrow">Hands-on tutorial · real ICU sink data</div>
+  <div class="hero-title">Quantify AMR with ResScan.</div>
+  <p class="lead">
+    A step-by-step walkthrough on real hospital sink-drain metagenomes: clean your
+    reads, quantify antibiotic resistance <strong>per bacterial cell</strong>, and
+    watch a resistome rebound after the plumbing was replaced — in about
+    <strong>15 minutes</strong>.
+  </p>
+  <div class="cta">
+    <a class="btn-primary-cta" href="setup.html">Start the tutorial →</a>
+    <a class="btn-ghost-cta" href="analysis.html">See the analysis</a>
+  </div>
+  <div class="meta-strip">
+    <span>Built on the <strong>Kotay et&nbsp;al. 2025</strong> ICU sink study</span>
+    <span>Runs on <strong>Linux · macOS · WSL</strong></span>
+    <span><strong>Free</strong> — no account, no cluster</span>
+  </div>
+</section>
+
+<p class="section-eyebrow">What you'll build, in three steps</p>
+
+<div class="workflow">
+  <div class="step-card">
+    <span class="step-num">1</span>
+    <span class="tool">VANISH</span>
+    <h3>QC &amp; host removal</h3>
+    <p>Quality-control every read and make the human DNA <em>vanish</em> — so you count
+    microbes, not people.</p>
+  </div>
+  <div class="step-card">
+    <span class="step-num">2</span>
+    <span class="tool">ResScan</span>
+    <h3>Quantify AMR</h3>
+    <p>Map what's left against CARD and report resistance <strong>per bacterial
+    cell</strong> — a metric that survives uneven depth.</p>
+  </div>
+  <div class="step-card">
+    <span class="step-num">3</span>
+    <span class="tool">R</span>
+    <h3>Analysis</h3>
+    <p>How much resistance, of what kind, driven by which genes — and see the
+    resistome climb after the swap.</p>
+  </div>
+</div>
+
+<p class="workflow-note">You'll do these in order — each step's page picks up where the
+last left off. Begin with <a href="setup.html">Setup</a>.</p>
+```
+
+::: {.section-eyebrow style="margin-top:2.6rem"}
+What you'll run it on
+:::
+
+A **bite-size slice** of the real study — the first 10,000 read pairs from each of 36
+sink-drain samples. Small enough to download in seconds and run on a laptop, yet
+enough to see every step work for real. The final analysis then uses the
+**full-depth results** (shipped with the repo), because that's where the biology
+actually shows up.
+
+New here? Start with the [**Overview**](overview.qmd) for the story behind the data,
+or jump straight to [**Setup**](setup.qmd).
+
+:::

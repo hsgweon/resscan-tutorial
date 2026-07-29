@@ -1,0 +1,29 @@
+# macOS
+.DS_Store
+._*
+
+# --- Things users clone/download/generate while following the tutorial ---
+# (kept out of the repo; each is produced by running the tutorial)
+tools/                   # cloned VANISH + ResScan repos (installed via conda)
+CARD_raw_v4.0.1/         # downloaded CARD release
+resscan_CARD_v4.0.1/     # built CARD database
+vanished/                # VANISH output
+resscan_single/          # ResScan single-sample output
+SinkReplacementBatch*/   # ResScan batch output + aggregated reports
+work/                    # Nextflow scratch directory
+.nextflow*
+*.nextflow.log*
+/samplesheet.csv         # a root-level one you might generate yourself (the shipped data/samplesheet.csv IS tracked)
+
+# NOTE: the toy Bowtie2 index (data/host_index/toy_human.*.bt2) IS committed
+# (prebuilt) so users get an identical, ready-to-run experience.
+
+# --- Quarto ---
+/.quarto/          # render cache (not the site)
+/_site/            # only if you ever switch output-dir away from docs/
+.claude/           # local editor/preview helpers
+# NOTE: docs/ IS committed — it's the rendered site GitHub Pages serves.
+
+**/*.quarto_ipynb
+
+/.quarto/

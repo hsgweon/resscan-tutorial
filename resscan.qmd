@@ -1,0 +1,161 @@
+---
+title: "Step 2 · Quantifying AMR with ResScan"
+subtitle: "Map the clean reads against CARD and report resistance per bacterial cell — one sample, then all 36."
+---
+
+Now the clean reads meet the resistance database. **ResScan** maps each sample
+against [CARD](https://card.mcmaster.ca/) to find AMR genes, *and* against a set of
+universal single-copy bacterial genes to estimate how many bacterial cells were
+there — then divides one by the other to report **RPKPMC**, its preferred default
+metric: resistance-gene copies *per bacterial cell*.
+
+We'll do it twice: **one sample by hand** to see the shape of the output, then
+**all 36 at once** in batch mode.
+
+```bash
+mamba activate resscan-env
+```
+
+::: {.callout-note}
+## A reminder about depth
+These are 10,000-read samples — a keyhole view. Your per-sample tables will be
+**sparse, maybe empty**, and that's completely fine: the goal here is to run the tool
+correctly. Real, populated results come from the full data (used in Step 3).
+:::
+
+## 2a · One sample
+
+Give ResScan the sample's two vanished mate files (comma-separated), an output
+prefix, some threads, and the CARD database you built in Setup:
+
+```bash
+mkdir -p resscan_single
+resscan -i vanished/vanished_reads/SRR10842836_1.fastq.gz,vanished/vanished_reads/SRR10842836_2.fastq.gz \
+        -o resscan_single/SRR10842836 \
+        -t 4 \
+        --card resscan_CARD_v4.0.1
+```
+
+When it finishes, look at what it produced:
+
+```bash
+ls resscan_single/
+```
+
+The key file is `SRR10842836_homscan.tsv` — one row per detected AMR gene, with all
+the normalised metrics (including the default `RPKPMC`) as columns. There's also a
+VarScan table for point-mutation resistance and interactive HTML coverage plots.
+
+::: {.callout-tip}
+## What are all these files, columns, and metrics?
+The [output reference](output-reference.qmd) breaks down every file ResScan writes,
+what each column means, how to decode the metric names, and the one label worth
+understanding up front — `multiple`. Worth a look before you dive into the numbers.
+:::
+
+That's one sample. Doing it 36 times by hand would be tedious and error-prone — so
+ResScan ships a batch mode.
+
+## 2b · All 36 at once (batch mode)
+
+`resscan_batch` runs ResScan across every sample listed in a **samplesheet** — a
+plain CSV that is both the batch's *input* and a durable *record* of exactly what
+you ran (keep it with your results). Each line is one sample: its name, then its
+read file(s). We ship one ready to go — take a look:
+
+```bash
+head -3 data/samplesheet.csv
+```
+
+```default
+SRR10842836,vanished/vanished_reads/SRR10842836_1.fastq.gz,vanished/vanished_reads/SRR10842836_2.fastq.gz
+SRR10842837,vanished/vanished_reads/SRR10842837_1.fastq.gz,vanished/vanished_reads/SRR10842837_2.fastq.gz
+...
+```
+
+Each line is `sample_id,R1,R2`. Commas separate a run's mates; **semicolons
+separate runs** — so a sample sequenced across two runs goes on one line as
+`SAMPLE,run1_R1,run1_R2;run2_R1,run2_R2`.
+
+::: {.callout-note}
+## List *all* of a sample's reads together
+Pooling every run for a sample is what makes the **lateral coverage** metric
+meaningful — a gene's coverage along its length is only correct when the full set of
+that sample's reads is considered at once. (This is the same `-i` format `resscan`
+uses for a single sample — see the ResScan README.)
+:::
+
+::: {.callout-note appearance="simple"}
+**Paths are relative to where you launch.** The paths above are relative to your
+working directory (this repo's root, where the `vanished/` folder from Step 1 lives);
+`resscan_batch` resolves them for you. Absolute paths work too.
+:::
+
+::: {.callout-tip collapse="true"}
+## Prefer to build your own samplesheet?
+The helper `create_samplesheet_from_mapping` stamps a samplesheet out of a simple
+`sample_id,file_prefix` mapping — e.g.
+
+```bash
+create_samplesheet_from_mapping --mapping data/sampleid2fileprefix.csv \
+    --fastq-dir vanished/vanished_reads --out samplesheet.csv
+```
+
+Or just write the CSV by hand in the format above. Either way, the batch only ever
+reads the samplesheet.
+:::
+
+Now run the whole batch on the shipped samplesheet. `--parallel` sets how many
+samples run at once and `--threads` how many cores each gets — tune both to your
+machine:
+
+```bash
+resscan_batch \
+    --samplesheet data/samplesheet.csv \
+    --card resscan_CARD_v4.0.1 \
+    --out SinkReplacementBatch \
+    --parallel 4 \
+    --threads 2
+```
+
+```default
+ N E X T F L O W   ~  version 26.04.x
+executor >  local
+
+[..] RESSCAN (SRR10842854) [100%] 36 of 36 ✔
+
+--- Batch Run Complete ---
+Status:  SUCCESS
+```
+
+## 2c · Consolidate into one set of tables
+
+Batch mode writes a folder *per sample*. `resscan_aggregate` pivots them into
+wide, analysis-ready tables — one file per metric, samples as columns:
+
+```bash
+resscan_aggregate \
+    -s data/samplesheet.csv \
+    -i SinkReplacementBatch \
+    -o SinkReplacementBatchReports \
+    -p SR
+```
+
+```bash
+ls SinkReplacementBatchReports/ | head
+```
+
+You'll get files like `SR_homscan_RPKPMC.tsv`, `SR_homscan_RPKM.tsv`,
+`SR_varscan_RPKPMC.tsv`, … — the exact shape the analysis uses. (On this subset
+they'll be sparse; the **full-depth** versions are already in `data/reports_full/`,
+which Step 3 uses.)
+
+## Tidy up
+
+```bash
+rm -rf work .nextflow*
+mamba deactivate
+```
+
+You've quantified AMR the recommended way. Next, get to know the output in the
+[**output reference**](output-reference.qmd), or head straight to **Step 3 · Analysis**.

@@ -1,0 +1,71 @@
+project:
+  type: website
+  output-dir: docs
+  render:
+    - "*.qmd"
+
+website:
+  title: "ResScan Tutorial"
+  description: "A hands-on metagenomic AMR workflow — QC & host removal, per-cell resistance quantification with ResScan, and before/after analysis."
+  site-url: "https://hsgweon.github.io/resscan-tutorial"
+  repo-url: "https://github.com/hsgweon/resscan-tutorial"
+  favicon: favicon.png
+  navbar:
+    background: light
+    pinned: true
+    logo: logo/ResScanLogo_web.png
+    logo-alt: "ResScan"
+    left:
+      - text: "Overview"
+        href: overview.qmd
+      - text: "Tutorial"
+        href: setup.qmd
+      - text: "Analysis"
+        href: analysis.qmd
+      - text: "Reference"
+        href: output-reference.qmd
+    right:
+      - icon: github
+        href: https://github.com/hsgweon/resscan-tutorial
+        aria-label: GitHub repository
+  sidebar:
+    style: floating
+    background: light
+    collapse-level: 3
+    contents:
+      - section: "Get started"
+        contents:
+          - text: "Overview"
+            href: overview.qmd
+          - text: "Setup"
+            href: setup.qmd
+      - section: "The workflow"
+        contents:
+          - text: "Step 1 · QC &amp; host removal"
+            href: vanish.qmd
+          - text: "Step 2 · Quantify with ResScan"
+            href: resscan.qmd
+          - text: "— Output reference"
+            href: output-reference.qmd
+          - text: "Step 3 · Analysis"
+            href: analysis.qmd
+      - section: "Go further"
+        contents:
+          - text: "Appendix · Your own data"
+            href: appendix.qmd
+  page-navigation: true
+  back-to-top-navigation: true
+
+format:
+  html:
+    theme: [cosmo, theme.scss]
+    toc: false
+    code-copy: true
+    code-overflow: scroll
+    highlight-style: github
+    linkcolor: "#3a5f96"
+    grid:
+      sidebar-width: 270px
+      body-width: 880px
+      margin-width: 200px
+    anchor-sections: true

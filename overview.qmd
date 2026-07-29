@@ -1,0 +1,49 @@
+---
+title: "Overview"
+subtitle: "Why replacing a hospital sink didn't fix the resistance problem — and the workflow that revealed it."
+---
+
+Replace a contaminated hospital sink and you'd expect the antibiotic-resistance
+problem to go down the drain. It didn't.
+
+When **[Kotay et al. (2025, *npj Antimicrobials & Resistance*)](https://doi.org/10.1038/s44259-025-00176-2)**
+ripped out and replaced the sink plumbing in six ICU rooms, the gleaming new
+drains were recolonised within weeks — and came back carrying *more* antibiotic
+resistance genes than the old ones, including mobile, clinically feared
+carbapenemases. The reservoir didn't reset. It rebooted, worse.
+
+How do you spot a surge like that in a soup of metagenomic reads? With the same
+two-tool workflow the study leaned on — and that's exactly what you'll run here.
+
+## What you'll do
+
+Three short steps, start to finish:
+
+1. **[VANISH](https://github.com/hsgweon/vanish)** — quality-control the reads and make the human DNA *vanish*.
+2. **[ResScan](https://github.com/hsgweon/resscan)** — quantify the AMR genes that remain, normalised *per bacterial cell*.
+3. **Analysis** — watch the resistome climb after the sinks were swapped.
+
+## What you'll run it on
+
+A **bite-size slice** of the real study: the first **10,000 read pairs** from each
+of the 36 sink samples. Small enough to download in seconds and run on a laptop —
+enough to *see every step work for real*.
+
+::: {.callout-note}
+## Ten thousand reads is a keyhole view
+Too shallow for meaningful biology, but perfect for learning the mechanics. So the
+final **analysis** step uses the **full-depth results** (provided) — that's where the
+science actually shows up. The complete raw data lives on NCBI SRA under BioProject
+**[PRJNA587635](https://www.ncbi.nlm.nih.gov/bioproject/PRJNA587635)**.
+:::
+
+## At a glance
+
+| | |
+|---|---|
+| **You'll need** | Linux, macOS, or Windows (via WSL) · `mamba`/`conda` — we install everything else |
+| **Time** | ~15 minutes end-to-end on the subset |
+| **Footprint** | The tutorial data is tiny; the toy human index ships prebuilt. (Real-world dehosting needs the full ~4 GB human index — covered in the Appendix.) |
+| **Cost** | Free. No account, no cluster. |
+
+Ready when you are — head to **Setup**.

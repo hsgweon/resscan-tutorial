@@ -1,0 +1,108 @@
+---
+title: "Appendix · Using your own data"
+subtitle: "Everything that changes when you point the workflow at real reads — plus fixes for the usual snags."
+---
+
+You've run the whole workflow on a toy. Here's everything that changes when you point
+it at real reads — plus the fixes for the snags people usually hit.
+
+## 1 · Use the *real* human index
+
+This is the one non-negotiable swap. The `toy_human` index that shipped with the
+repo is only the human **mitochondrion** — a stand-in so Step 1 runs in seconds. It
+removes almost no host DNA.
+
+::: {.callout-warning}
+## Never run the toy index on real data
+It will silently pass through the vast majority of human reads — into your results
+and, worse, into any files you archive. On real samples, always dehost against the
+**full human genome**.
+:::
+
+Build a real host index once, then reuse it forever. Grab a decoy-aware human
+reference (T2T-CHM13 or GRCh38) and index it with the *same* `bowtie2-build` VANISH
+uses:
+
+```bash
+# ~3 GB download; the index build takes a while and needs ~16 GB RAM
+wget -O GRCh38.fa.gz \
+  https://ftp.ensembl.org/pub/release-110/fasta/homo_sapiens/dna/Homo_sapiens.GRCh38.dna.primary_assembly.fa.gz
+gunzip GRCh38.fa.gz
+
+bowtie2-build --threads 8 GRCh38.fa human_GRCh38
+```
+
+Then point VANISH at it instead of the toy — everything else in
+[Step 1](vanish.qmd) is identical:
+
+```bash
+vanish --read_pairs read_pairs.csv \
+       --fastq_dir /path/to/your/reads \
+       --host_index human_GRCh38 \
+       --cpus 8
+```
+
+Now the `vanish_filtering_report.csv` will show host removal doing real work.
+
+## 2 · Bring your own reads
+
+Two small things change for your own samples:
+
+- **Mate naming.** Tell `vanish-prep` how *your* files name their mates. Ours were
+  `_1` / `_2`; yours might be `_R1` / `_R2`:
+  ```bash
+  vanish-prep --fastq_dir /path/to/your/reads --r1 "_R1" --r2 "_R2" --out read_pairs.csv
+  ```
+- **Multiple runs per sample.** If a sample was sequenced more than once, list *all*
+  its reads on one samplesheet line — mates joined by commas, runs separated by
+  semicolons:
+  ```default
+  SAMPLE_A,runX_R1.fq.gz,runX_R2.fq.gz;runY_R1.fq.gz,runY_R2.fq.gz
+  ```
+  Pooling every run per sample is what makes the **lateral coverage** metric honest
+  (see [Step 2](resscan.qmd)).
+
+Everything downstream — `resscan_batch`, `resscan_aggregate`, the whole
+[analysis](analysis.qmd) — is unchanged. Same commands, your data.
+
+## 3 · Keep the database current
+
+CARD is updated regularly. To rebuild against a newer release, download it from
+[card.mcmaster.ca](https://card.mcmaster.ca/) and rebuild — same two steps as in
+Setup, just a new version string:
+
+```bash
+resscan_build_db -i CARD_raw -d resscan_CARD_v4.x.y
+```
+
+Record which CARD version you used with your results — resistome numbers aren't
+comparable across database versions.
+
+## 4 · Scale, cost, and cleanup
+
+- **Threads vs. parallel.** In `resscan_batch`, `--parallel` is how many samples run
+  at once and `--threads` is cores per sample. Total cores used ≈ `parallel × threads`
+  — set both to fit your machine, not beyond it.
+- **Disk.** Nextflow's `work/` directory grows fast and outlives the run. Delete it
+  once you have the results you want:
+  ```bash
+  rm -rf work .nextflow*
+  ```
+- **Environments.** `mamba deactivate` when you're done, and remove an env entirely
+  with `mamba env remove -n vanish-env` (or `resscan-env`).
+
+## 5 · Troubleshooting
+
+| Symptom | Likely cause & fix |
+|---|---|
+| `command not found: vanish` / `resscan` | The environment isn't active — `mamba activate vanish-env` (or `resscan-env`). |
+| `environment.yml … pip install .` fails | You must be **inside** the cloned repo when creating the env: `( cd tools/vanish && mamba env create -f environment.yml )`. |
+| VANISH removes ~0 host reads | You're on the **toy** index. Build and use the real human index (§1). |
+| `ERROR: Samplesheet '…' not found` | Path is relative to where you launched. Run from the repo root, or pass an absolute path. |
+| `Duplicate Sample IDs detected` | Two rows share a `sample_id`. If it's the same sample across runs, merge them onto **one** line with `;`. |
+| Per-sample ResScan tables are empty | Expected on the 10K subset — too shallow. Depth, not a bug (see [Step 2](resscan.qmd)). |
+| Nextflow `work/` filled the disk | `rm -rf work .nextflow*` after each successful run. |
+| Analysis fold-changes look wrong / miss known genes | Aggregate **per sample first, then average** — don't `mean()` over raw gene×sample cells (see [Step 3](analysis.qmd)). |
+
+That's the whole workflow, toy to real. Clean reads in, calibrated per-cell numbers
+out, a resistome you can actually reason about.
